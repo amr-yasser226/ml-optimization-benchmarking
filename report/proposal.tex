@@ -1,0 +1,222 @@
+% proposal.tex
+\documentclass[conference]{IEEEtran}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{cite}
+
+\pagestyle{plain}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\title{From Regularized (Convex) Regression to AdamW, L-BFGS, and Constrained Training:\\ 
+A Review and Benchmarking Study}
+
+\author{%
+\begin{tabular}{c}
+Amr Yasser (202301043) --- Omar Hazem (202300800) --- Yousef Mohamed (202300220)\\
+Hady Saeed (202301707) --- Mohamed Mourad (202302348)\\[3pt]
+Zewail City of Science and Technology, Egypt\\
+MATH 303 --- Linear and Nonlinear Programming\\
+Instructor: Prof. Ahmed Abdelsamea
+\end{tabular}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Optimization is the computational core of modern machine learning, yet many commonly used training algorithms in deep learning are often presented without clear connections to the classical linear/nonlinear programming (LP/NLP) concepts that explain their behavior. This project proposes a review-and-benchmark study that unifies popular learning objectives and optimizers under a single optimization viewpoint: empirical risk minimization with regularization and (optional) constraints. We connect convex models---ridge regression, logistic regression, and linear SVMs---to LP/NLP tools including convexity, duality, Karush--Kuhn--Tucker (KKT) conditions, conditioning, and quasi-Newton approximations. We then extend the comparison to a small nonconvex neural network to examine how first-order, adaptive, and quasi-Newton methods behave when classical assumptions break down. Beyond a narrative survey, the project’s contribution is a reproducible experimental protocol: consistent stopping criteria, compute budgets, and robustness checks across optimizers (SGD/Momentum, Adam/AdamW, and L-BFGS), with controlled sensitivity analysis over learning rates, regularization strength, and random seeds. The expected outcome is a course-aligned report that doubles as a practitioner-oriented review with clear “if-then” guidance for choosing optimization methods in AI workflows.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Convex optimization, empirical risk minimization, regularization, KKT conditions, quasi-Newton methods, L-BFGS, AdamW, constrained training, benchmarking.
+\end{IEEEkeywords}
+
+\section{Introduction (Background \& Brief Literature Review)}
+Many supervised learning pipelines can be written as optimization problems: minimize an empirical loss (data fit) plus regularization (model complexity control). In convex settings, LP/NLP theory provides strong guarantees (global optimality), interpretable optimality certificates (duality/KKT), and well-studied numerical behavior under ill-conditioning and finite precision \cite{BoydConvex,NocedalWright}. In contrast, modern deep learning typically solves nonconvex objectives using stochastic first-order methods (SGD and momentum variants) and adaptive methods in the Adam family, which are often effective but sensitive to hyperparameters and may behave differently in terms of generalization \cite{BottouCurtisNocedal,KingmaBa,ReddiAMSGrad,LoshchilovHutterAdamW}.
+
+Several foundational works connect machine learning practice to classical optimization. Bottou \textit{et al.} survey large-scale optimization for ML and discuss tradeoffs among stochastic gradients and quasi-Newton methods under realistic compute budgets \cite{BottouCurtisNocedal}. Adaptive scaling methods were motivated by sparse/heterogeneous gradients (AdaGrad) and led to Adam (moment estimates) \cite{DuchiAdaGrad,KingmaBa}. Subsequent work identified convergence issues and proposed variants such as AMSGrad \cite{ReddiAMSGrad}. AdamW clarified that ``weight decay'' is not always equivalent to an \(L_2\) penalty under adaptive updates; decoupling weight decay often improves empirical behavior \cite{LoshchilovHutterAdamW}. On the convex side, Boyd--Vandenberghe and Nocedal--Wright provide the theoretical backbone for convex duality/KKT systems and for quasi-Newton methods such as (L-)BFGS \cite{BoydConvex,NocedalWright}. For SVMs specifically, the primal/dual/KKT structure enables crisp geometric interpretation (margins, support vectors) \cite{CortesVapnikSVM}.
+
+\textbf{Motivation and gap.} Many optimizer comparisons focus only on deep networks (often lacking analytical anchors), while many LP/NLP treatments focus on convex problems that do not reflect modern AI training loops. This project bridges both by (i) expressing common ML objectives in an LP/NLP formulation, (ii) using convex tasks as ``ground-truth'' diagnostic benchmarks, and (iii) extending the same protocol to a small nonconvex neural network to observe where classical intuition still predicts behavior (and where it fails).
+
+\section{Problem Definition (Mathematical Formulation)}
+We study supervised learning with data \(\{(x_i,y_i)\}_{i=1}^n\), where \(x_i\in\mathbb{R}^d\) and labels \(y_i\) are either real-valued (regression) or binary \(y_i\in\{-1,+1\}\).
+
+\subsection{Unified ERM + regularization (+ optional constraints)}
+We consider problems of the form
+\begin{equation}
+\label{eq:erm}
+\min_{w\in\mathbb{R}^d}\; F(w)\equiv \frac{1}{n}\sum_{i=1}^n \ell(w;x_i,y_i)+\lambda R(w)
+\quad \text{s.t.}\quad g_j(w)\le 0,\; j=1,\dots,m,
+\end{equation}
+where \(w\) are parameters, \(\ell\) is a loss (squared/logistic/hinge/cross-entropy), \(R\) is a regularizer (e.g., \(R(w)=\tfrac{1}{2}\|w\|_2^2\) or \(\|w\|_1\)), \(\lambda\ge 0\) is regularization strength, and \(g_j\) encode optional constraints (NLP component), e.g., a norm constraint \(\|w\|_2\le \tau\), monotonicity constraints, or proxy fairness constraints.
+
+\subsection{KKT conditions (interpretability/diagnostics)}
+Assuming differentiability and constraint qualification, KKT conditions for a solution \(w^\star\) require multipliers \(\mu^\star\in\mathbb{R}^m_{\ge 0}\) such that:
+\begin{align}
+\text{Stationarity: }& \nabla F(w^\star)+\sum_{j=1}^m \mu_j^\star \nabla g_j(w^\star)=0,\nonumber\\
+\text{Primal feasibility: }& g_j(w^\star)\le 0,\ j=1,\dots,m,\nonumber\\
+\text{Dual feasibility: }& \mu_j^\star\ge 0,\ j=1,\dots,m,\nonumber\\
+\text{Complementary slackness: }& \mu_j^\star g_j(w^\star)=0,\ j=1,\dots,m.\label{eq:kkt}
+\end{align}
+These conditions help connect ML training to LP/NLP notions of constraints, penalties, and dual variables \cite{BoydConvex,NocedalWright}.
+
+\subsection{Core convex benchmark problems (analytical anchors)}
+\textbf{(A) Ridge regression (strongly convex, closed-form).}
+Let \(X\in\mathbb{R}^{n\times d}\), \(y\in\mathbb{R}^n\). Solve
+\begin{equation}
+\label{eq:ridge}
+\min_{w}\; \frac{1}{2n}\|Xw-y\|_2^2+\frac{\lambda}{2}\|w\|_2^2.
+\end{equation}
+For \(\lambda>0\), the unique minimizer is
+\begin{equation}
+\label{eq:ridge_closed}
+w^\star=(X^\top X+n\lambda I)^{-1}X^\top y,
+\end{equation}
+providing a gold-standard reference for optimality gap and numerical error.
+
+\textbf{(B) Logistic regression with \(L_2\) (convex, smooth).}
+For \(y_i\in\{-1,+1\}\),
+\begin{equation}
+\label{eq:logreg}
+\min_{w}\; \frac{1}{n}\sum_{i=1}^n \log\!\bigl(1+\exp(-y_i x_i^\top w)\bigr)+\frac{\lambda}{2}\|w\|_2^2.
+\end{equation}
+
+\textbf{(C) Linear soft-margin SVM (convex, explicit constraints).}
+Equivalent constrained form with slack \(\xi\in\mathbb{R}^n_{\ge 0}\):
+\begin{equation}
+\label{eq:svm_primal}
+\min_{w,b,\xi\ge 0}\; \frac{1}{2}\|w\|_2^2 + C\sum_{i=1}^n \xi_i
+\;\;\text{s.t.}\;\; y_i(w^\top x_i+b)\ge 1-\xi_i,\ \forall i.
+\end{equation}
+This is ideal for illustrating KKT structure and the role of dual variables/support vectors \cite{CortesVapnikSVM}.
+
+\subsection{Nonconvex extension (simulation benchmark)}
+\textbf{(D) Small neural network (nonconvex).}
+Let \(f_\theta(\cdot)\) be a small MLP/CNN with parameters \(\theta\). We solve
+\begin{equation}
+\label{eq:nn}
+\min_{\theta}\; \frac{1}{n}\sum_{i=1}^n \ell\bigl(f_\theta(x_i),y_i\bigr)+\lambda R(\theta),
+\end{equation}
+typically with cross-entropy loss and weight decay/regularization. This tests how optimizer behavior changes once convex assumptions no longer apply.
+
+\subsection{What is the ``problem to be solved'' in this project?}
+The project objective is comparative and methodological:
+\begin{quote}
+Given ML objectives spanning convex and nonconvex regimes, determine how optimizer choice (first-order vs adaptive vs quasi-Newton, and optionally constrained methods) affects convergence, stability, and generalization under a standardized, reproducible protocol.
+\end{quote}
+
+\section{Methodology (Analytical + Numerical + Simulation)}
+\subsection{Analytical component (LP/NLP concepts applied)}
+We will include course-aligned derivations and diagnostics:
+\begin{itemize}
+\item \textbf{Convexity/strong convexity:} implications for uniqueness and convergence in ridge/logistic/SVM \cite{BoydConvex}.
+\item \textbf{Penalty vs constraint viewpoint:} relate regularization in \eqref{eq:erm} to constrained forms (e.g., \(R(w)\) as a norm ball constraint) and discuss when they are equivalent \cite{BoydConvex,NocedalWright}.
+\item \textbf{KKT/duality for SVM:} interpret complementary slackness and support vectors using \eqref{eq:kkt} and \eqref{eq:svm_primal} \cite{CortesVapnikSVM}.
+\item \textbf{Conditioning/curvature:} explain why gradient methods can slow under ill-conditioning and why quasi-Newton methods (L-BFGS) can help on smooth convex objectives \cite{NocedalWright,BottouCurtisNocedal}.
+\end{itemize}
+
+\subsection{Numerical component (optimizer benchmarking on convex tasks)}
+\textbf{Optimizers (primary set).}
+\begin{itemize}
+\item SGD (and full-batch GD where appropriate)
+\item SGD + Momentum (or Nesterov; we will pick one for scope control)
+\item Adam and AdamW (to highlight decoupled weight decay) \cite{KingmaBa,LoshchilovHutterAdamW}
+\item L-BFGS as a quasi-Newton baseline \cite{NocedalWright}
+\end{itemize}
+
+\textbf{Metrics.} For each task, we will log:
+\begin{itemize}
+\item Objective value \(F(w)\) vs epochs/iterations and vs wall-clock time
+\item Optimality gap where available:
+\begin{itemize}
+\item Ridge: exact reference via \eqref{eq:ridge_closed}
+\item Logistic/SVM: high-accuracy reference (tight tolerance L-BFGS or a trusted solver)
+\end{itemize}
+\item Gradient norm \(\|\nabla F(w)\|_2\) for smooth objectives (ridge/logistic)
+\item Robustness: sensitivity to learning rate, \(\lambda\), and random seeds
+\end{itemize}
+
+\textbf{Fair comparison protocol (reproducibility rules).}
+To prevent ``optimizer Olympics'' (where the winner is whichever got more tuning love), we will standardize:
+\begin{itemize}
+\item Same data splits, preprocessing, initialization distributions, and random seeds
+\item Fixed compute budgets per method (e.g., same number of passes through data or same number of gradient evaluations), plus a shared stopping criterion (max epochs and/or tolerance on objective decrease)
+\item Equal hyperparameter tuning budgets (same-size grid or same number of trials per optimizer)
+\item Report mean \(\pm\) standard deviation over multiple seeds
+\end{itemize}
+
+\subsection{Simulation component (nonconvex neural network)}
+We will repeat the same logging protocol for a small network (kept intentionally small to maintain feasibility and interpretability):
+\begin{itemize}
+\item Dataset: MNIST (primary) or a small CIFAR-10 subset (secondary if time/compute allow)
+\item Outputs: training curves (loss/accuracy), test performance, generalization gap, seed-to-seed variability
+\item Focus point: compare Adam vs AdamW under matched ``weight decay'' values to illustrate the practical difference between an \(L_2\) penalty and decoupled decay \cite{LoshchilovHutterAdamW}
+\end{itemize}
+
+\subsection{Optional constrained training add-on (if time permits)}
+To explicitly include a constrained NLP method beyond SVM:
+\begin{itemize}
+\item \textbf{Norm-constrained training:} \(\|w\|_2 \le \tau\) with projected gradient or penalty method
+\item (Stretch) A simple fairness proxy constraint in logistic regression (e.g., limit difference in predicted positive rates between two groups), treated via penalty or augmented-Lagrangian-style discussion \cite{NocedalWright}
+\end{itemize}
+
+\subsection{Software tools}
+Planned stack:
+\begin{itemize}
+\item Python with NumPy/SciPy for convex objectives and linear algebra; SciPy L-BFGS(-B) for baselines
+\item PyTorch for neural networks and optimizer implementations (SGD/Momentum/Adam/AdamW)
+\item Matplotlib/Seaborn for plots; Pandas/CSV logging for tables; optional TensorBoard
+\item Reproducibility: fixed seeds, config files, and consistent environment capture
+\end{itemize}
+
+\section{Initial Results (Optional for Proposal Phase)}
+No finalized results are required at this stage. However, our first technical milestone will produce \textbf{sanity-check evidence} that the experimental harness is correct:
+\begin{itemize}
+\item Ridge regression: verify that iterative solvers converge to the closed-form \(w^\star\) in \eqref{eq:ridge_closed}, and report numerical error \(\|w-w^\star\|\) and objective gap.
+\item Pilot comparison: produce at least one plot comparing (i) GD/SGD vs (ii) L-BFGS on ridge or logistic regression under matched stopping rules.
+\end{itemize}
+
+\section{Expected Contributions / Deliverables}
+\begin{enumerate}
+\item \textbf{Course-aligned review section} linking ML objectives to LP/NLP constructs: convexity, duality, KKT, conditioning, and quasi-Newton ideas.
+\item \textbf{Reproducible benchmark suite} spanning convex (ridge/logistic/SVM) and nonconvex (small NN) tasks with a standardized protocol.
+\item \textbf{Practitioner-oriented guidelines} (``if--then'' rules) grounded in theory and observed behavior; e.g., when ill-conditioning favors curvature information (L-BFGS) vs when stochasticity/adaptation (AdamW) helps early training.
+\end{enumerate}
+
+\section{Work Plan (Proposal-to-Report Path)}
+To keep scope realistic while aiming for a strong final report, we plan the following progression:
+\begin{table}[h]
+\centering
+\caption{Planned milestones (high-level).}
+\begin{tabular}{p{0.17\linewidth} p{0.76\linewidth}}
+\toprule
+Milestone & Output \\
+\midrule
+M1 & Implement unified experiment harness; ridge closed-form verification. \\
+M2 & Convex benchmarks: ridge + logistic + SVM runs; optimizer sweeps; reference solutions. \\
+M3 & Nonconvex benchmark: small NN runs; Adam vs AdamW comparison; seed robustness. \\
+M4 & Write-up: theory (KKT/duality/conditioning) + results + guidelines; finalize reproducibility artifacts. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{References}
+
+\bibliographystyle{IEEEtran}
+
+\bibliography{refs}
+
+\end{document}
