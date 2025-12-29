@@ -1,3 +1,5 @@
+import numpy as np
+
 def generate_synthetic_data(n: int, d: int, condition_number: float = 1.0):
     """Generates synthetic data with controlled conditioning[cite: 150]."""
     U, _ = np.linalg.qr(np.random.randn(n, d))
@@ -27,3 +29,4 @@ def ridge_objective(w: np.ndarray, X: np.ndarray, y: np.ndarray, lmbda: float):
     loss = (1/(2*n)) * np.sum(error**2) + (lmbda/2) * np.sum(w**2)
     grad = (1/n) * (X.T @ error) + lmbda * w
     return loss, grad
+
