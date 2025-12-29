@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+import numpy as np
 class Optimizer(ABC):
     @abstractmethod
     def update(self, w: np.ndarray, grad: np.ndarray) -> np.ndarray:
@@ -22,3 +22,4 @@ class MomentumSGD(Optimizer):
     def update(self, w: np.ndarray, grad: np.ndarray) -> np.ndarray:
         self.velocity = self.gamma * self.velocity + self.eta * grad
         return w - self.velocity
+
