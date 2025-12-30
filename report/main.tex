@@ -29,7 +29,7 @@
 \maketitle
 
 \begin{abstract}
-Optimization is the foundational engine of modern machine learning. This report presents a comprehensive benchmarking study of various optimization algorithms across diverse problem classes, ranging from smooth convex quadratic forms to complex non-convex neural landscapes. We analyze the performance of first-order stochastic methods (SGD, Adam, AdamW) and quasi-Newton methods (L-BFGS). Through five distinct milestones, we evaluate these algorithms on tasks including Ridge Regression, Logistic Regression, SVMs, and neural networks. Our findings quantify the trade-offs between computational efficiency, exact convergence, and generalization, providing a decision matrix for optimizer selection in practical applications.
+Optimization is the foundational engine of modern machine learning. This report presents a comprehensive benchmarking study of various optimization algorithms across diverse problem classes, ranging from smooth convex quadratic forms to complex non-convex neural landscapes. We analyze the performance of first-order stochastic methods (SGD, Adam, AdamW) and quasi-Newton methods (L-BFGS). Through six distinct milestones, we evaluate these algorithms on tasks including Ridge Regression, Logistic Regression, SVMs, and neural networks. Our findings quantify the trade-offs between computational efficiency, exact convergence, and generalization, providing a decision matrix for optimizer selection in practical applications.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -57,7 +57,7 @@ The geometry of $F(w)$ determines the difficulty of the optimization. Convex fun
 \end{figure}
 
 \section{Methodology}
-Our methodology relies on creating controlled experimental environments. We implement standalone solvers for each milestone to ensure that the benchmarking results are not influenced by external library overhead. All experiments were conducted using double-precision floating-point arithmetic.
+Our methodology relies on creating controlled experimental environments. We implement standalone solvers for each milestone to ensure that the benchmarking results are not influenced by external library overhead. All experiments were conducted using double-precision floating-point arithmetic for convex cases and single-precision for neural networks.
 
 \subsection{Gradient Verification}
 To ensure the mathematical correctness of our implemented gradients (MSE, Logistic, and Hinge), we performed numerical sanity checks using finite differences.
@@ -97,7 +97,17 @@ We addressed non-smooth Hinge loss and explicit L2-norm constraints $\|w\|_2 \le
     \label{fig:svm}
 \end{figure}
 
-\subsection{Milestone 5: Meta-Analysis}
+\subsection{Milestone 5: Neural Networks (Adam vs. AdamW)}
+In this non-convex setting, we evaluated Adam vs. AdamW on MNIST using an MLP. Standard Adam integrates weight decay as an L2 penalty, whereas AdamW decouples it from the gradient update \cite{LoshchilovHutterAdamW}. As shown in Fig.~\ref{fig:nn}, AdamW achieves faster convergence and a lower final training loss ($0.0194$) compared to Adam ($0.0251$). Furthermore, AdamW consistently reached higher test accuracy ($\sim 97.8\%$).
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.45\textwidth]{../figures/nn_training_curves.png}
+    \caption{Training Loss for Adam vs. AdamW on MNIST. Decoupled weight decay in AdamW leads to more stable and faster convergence.}
+    \label{fig:nn}
+\end{figure}
+
+\subsection{Milestone 6: Meta-Analysis}
 The final meta-analysis in Fig.~\ref{fig:meta} summarizes the convergence profiles across all problem classes. Table~\ref{tab:benchmarks} provides the detailed numerical benchmarking results extracted from our experimental logs.
 
 \begin{figure}[!t]
@@ -119,7 +129,9 @@ Ridge (SGD) & Final Opt. Gap & $0.2101$ & OK \\
 Logistic (Adam) & Final Loss & $0.3957$ & OK \\
 Logistic (L-BFGS) & Final Loss & $0.2300$ & BEST \\
 SVM (Constrained) & Final Hinge Loss & $0.7399$ & PASS \\
-SVM (Constrained) & SV Count / Ratio & 462 / 92.4\% & - \\ \bottomrule
+NN (Adam) & Final Train Loss & $0.0251$ & OK \\
+NN (AdamW) & Final Train Loss & $0.0194$ & BEST \\
+NN (AdamW) & Test Accuracy & $97.8\%$ & PASSED \\ \bottomrule
 \end{tabular}
 \end{table}
 
