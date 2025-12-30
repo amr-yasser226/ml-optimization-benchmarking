@@ -1,4 +1,13 @@
 import numpy as np
+import yaml
+import os
+
+def load_config(config_path: str):
+    """Loads a YAML configuration file."""
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found at {config_path}")
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 def generate_synthetic_data(n: int, d: int, condition_number: float = 1.0):
     """Generates synthetic data with controlled conditioning[cite: 150]."""
@@ -13,7 +22,7 @@ def generate_synthetic_data(n: int, d: int, condition_number: float = 1.0):
     X = U @ S @ V
     w_true = np.random.randn(d)
     y = X @ w_true + np.random.normal(0, 0.1, size=n)
-    return X, y
+    return X, y, w_true
 
 def compute_ridge_closed_form(X: np.ndarray, y: np.ndarray, lmbda: float):
     """Analytical solution for Ridge Regression[cite: 151]."""

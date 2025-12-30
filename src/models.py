@@ -1,12 +1,13 @@
 import torch.nn as nn
+
 class MLP(nn.Module):
-    def __init__(self):
+    def __init__(self, input_size=784, hidden_size=128, output_size=10):
         super().__init__()
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(28*28, 128),
+            nn.Linear(input_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(128, 10)
+            nn.Linear(hidden_size, output_size)
         )
 
     def forward(self, x):
