@@ -1,0 +1,5 @@
+Problem Type,Recommended Optimizer,Reasoning
+Small Smooth Convex,L-BFGS,Second-order info captures curvature for faster exact convergence.
+Large Smooth Convex,Adam / SGD+Momentum,Memory efficient and handles stochastic gradients effectively.
+Non-Smooth Convex (SVM),Subgradient / Proximal,Handles non-differentiable points at margin boundaries.
+Non-Convex (DL),AdamW,Effective weight decay decoupling improves generalization.
