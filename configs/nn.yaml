@@ -1,9 +1,7 @@
-
-
 model:
-  input_dim: 784
-  hidden_dim: 128
-  num_classes: 10
+  input_size: 784
+  hidden_size: 128
+  output_size: 10
 
 training:
   batch_size: 128
