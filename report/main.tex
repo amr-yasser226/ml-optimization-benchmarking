@@ -1,0 +1,149 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage[hidelinks,pdftex]{hyperref}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Optimization Methods for Regularized Machine Learning: From Convex Models to AdamW and L-BFGS}
+
+\author{
+    \IEEEauthorblockN{Amr Yasser, Omar Hazem, Youssef Mohamed, Mohamed Mourad, Hady Saeed}
+    \IEEEauthorblockA{
+        Data Science and Artificial Intelligence Major \\
+        Computational Science and Artificial Intelligence School \\
+        Zewail City of Science and Technology \\
+        MATH 303 | Supervisor: Ahmed Abdelsamea
+    }
+}
+
+\maketitle
+
+\begin{abstract}
+Optimization is the foundational engine of modern machine learning. This report presents a comprehensive benchmarking study of various optimization algorithms across diverse problem classes, ranging from smooth convex quadratic forms to complex non-convex neural landscapes. We analyze the performance of first-order stochastic methods (SGD, Adam, AdamW) and quasi-Newton methods (L-BFGS). Through five distinct milestones, we evaluate these algorithms on tasks including Ridge Regression, Logistic Regression, SVMs, and neural networks. Our findings quantify the trade-offs between computational efficiency, exact convergence, and generalization, providing a decision matrix for optimizer selection in practical applications.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Optimization, Convex Optimization, AdamW, L-BFGS, SGD, Regularization, Machine Learning.
+\end{IEEEkeywords}
+
+\section{Introduction}
+Mathematical optimization is the process of minimizing a loss function to train predictive models. As machine learning models grow in complexity, from linear regression to deep neural networks, the choice of optimizer becomes critical for both training speed and inference performance. This study explores the spectrum of optimization techniques, starting with a verification of theoretical properties and progressing to large-scale non-convex benchmarks. We focus on regularized models, where the objective function includes a penalty term to prevent overfitting and ensure model robustness.
+
+\section{Theoretical Framework}
+We consider the regularized empirical risk minimization problem:
+\begin{equation}
+\min_{w \in \mathbb{R}^d} F(w) = \frac{1}{n} \sum_{i=1}^n \ell(y_i, f(x_i; w)) + \lambda R(w)
+\end{equation}
+where $\ell$ denotes the loss function and $R(w)$ is the regularizer (typically $L_2$ norm).
+
+\subsection{Optimization Landscape}
+The geometry of $F(w)$ determines the difficulty of the optimization. Convex functions, such as those in Ridge and Logistic Regression, have a single global minimum. Non-convex functions, typical in neural networks, contain multiple local minima and saddle points. Fig.~\ref{fig:convexity} illustrates this contrast.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.45\textwidth]{../figures/convexity_comparison.png}
+    \caption{Comparison of Convex vs. Non-Convex landscapes. The convex objective allows for deterministic convergence to a global minimum.}
+    \label{fig:convexity}
+\end{figure}
+
+\section{Methodology}
+Our methodology relies on creating controlled experimental environments. We implement standalone solvers for each milestone to ensure that the benchmarking results are not influenced by external library overhead. All experiments were conducted using double-precision floating-point arithmetic.
+
+\subsection{Gradient Verification}
+To ensure the mathematical correctness of our implemented gradients (MSE, Logistic, and Hinge), we performed numerical sanity checks using finite differences.
+As recorded in \texttt{results/sanity\_checks.json}, the MSE gradient error was $1.0229 \times 10^{-10}$ and the Logistic gradient error was $8.4513 \times 10^{-11}$. These values confirm that our analytical derivatives are correctly derived and implemented.
+
+\section{Experimental Results and Discussion}
+
+\subsection{Milestone 2: Ridge Regression Convergence}
+In Milestone 2, we benchmarked Stochastic Gradient Descent (SGD) against the analytical closed-form solution:
+$w^* = (X^T X + n\lambda I)^{-1} X^T y$.
+Using ill-conditioned synthetic data (condition number $\kappa=10$), we tracked the optimality gap $\|w_k - w^*\|_2$. As shown in Fig.~\ref{fig:ridge}, SGD converges to the analytical solution with a final gap of $0.2101$ after 1000 iterations.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.45\textwidth]{../figures/ridge_convergence.png}
+    \caption{Optimality gap convergence in Ridge Regression. Final gap to analytical solution: 0.2101.}
+    \label{fig:ridge}
+\end{figure}
+
+\subsection{Milestone 3: Smooth Convex Duel (Adam vs. L-BFGS)}
+For Logistic Regression, we compared the adaptive Adam optimizer against the second-order L-BFGS. L-BFGS utilizes curvature information, reaching a lower final loss of $0.2300$ significantly faster than Adam ($0.3957$), as shown in Fig.~\ref{fig:logistic}. Note the sharp convergence curves in the early iterations for L-BFGS.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.45\textwidth]{../figures/logistic_duel.png}
+    \caption{Optimizer Duel on Logistic Regression. Quasi-Newton methods (L-BFGS) demonstrate superior efficiency on smooth convex surfaces (Final Loss: 0.2300).}
+    \label{fig:logistic}
+\end{figure}
+
+\subsection{Milestone 4: Constrained SVM Optimization}
+We addressed non-smooth Hinge loss and explicit L2-norm constraints $\|w\|_2 \le \tau$ using Projected Subgradient Descent. Fig.~\ref{fig:svm} shows the objective value decreasing while the weight norm is strictly capped at $\tau=2.0$ (final norm: $0.5759$). The final model reached a loss of $0.7399$ and identified 462 support vectors (92.4\% support ratio).
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.45\textwidth]{../figures/svm_constrained.png}
+    \caption{Projected Subgradient Descent for SVM. Weight norm (dashed red) stays within the boundary $\tau$. Final Loss: 0.7399.}
+    \label{fig:svm}
+\end{figure}
+
+\subsection{Milestone 5: Meta-Analysis}
+The final meta-analysis in Fig.~\ref{fig:meta} summarizes the convergence profiles across all problem classes. Table~\ref{tab:benchmarks} provides the detailed numerical benchmarking results extracted from our experimental logs.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.45\textwidth]{../figures/meta_analysis_convergence.png}
+    \caption{Unified Meta-Analysis. Different problem classes require specific optimization strategies to minimize the optimality gap efficiently.}
+    \label{fig:meta}
+\end{figure}
+
+\begin{table}[!t]
+\centering
+\caption{Quantitative Benchmarking Results Summary}
+\label{tab:benchmarks}
+\begin{tabular}{@{}lllc@{}}
+\toprule
+\textbf{Task} & \textbf{Metric} & \textbf{Value} & \textbf{Status} \\ \midrule
+Theory Check & Gradient Error & $1.02 \times 10^{-10}$ & PASS \\
+Ridge (SGD) & Final Opt. Gap & $0.2101$ & OK \\
+Logistic (Adam) & Final Loss & $0.3957$ & OK \\
+Logistic (L-BFGS) & Final Loss & $0.2300$ & BEST \\
+SVM (Constrained) & Final Hinge Loss & $0.7399$ & PASS \\
+SVM (Constrained) & SV Count / Ratio & 462 / 92.4\% & - \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\section{Practitioner Decision Matrix}
+Based on the aggregated results, we provide the following guidelines for optimizer selection in machine learning tasks:
+
+\begin{table}[!h]
+\centering
+\caption{Optimizer Suitability Matrix}
+\label{tab:matrix}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Problem Scenario} & \textbf{Recommendation} & \textbf{Key Insight} \\ \midrule
+Small \& Smooth & L-BFGS & Captures curvature \\
+Large Scale & Adam / SGD & Memory efficiency \\
+Non-Smooth & Subgradient & Handle discontinuities \\
+Deep Learning & AdamW & Decoupled regularization \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusion}
+This study identifies that the effectiveness of an optimizer is intrinsically linked to the smoothness and convexity of the objective function. L-BFGS is optimal for smooth convex problems \cite{NocedalWright}, whereas AdamW is the preferred choice for non-convex neural landscapes due to its robust handling of weight decay \cite{LoshchilovHutterAdamW}. Adaptive methods like Adam \cite{KingmaBa} remain highly effective for a wide range of tasks and architectures. These principles are consistent with established theoretical foundations in convex optimization \cite{BoydConvex}.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refrences}
+
+\end{document}
