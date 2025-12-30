@@ -57,7 +57,7 @@ The geometry of $F(w)$ determines the difficulty of the optimization. Convex fun
 \end{figure}
 
 \section{Methodology}
-Our methodology relies on creating controlled experimental environments. We implement standalone solvers for each milestone to ensure that the benchmarking results are not influenced by external library overhead. All experiments were conducted using double-precision floating-point arithmetic for convex cases and single-precision for neural networks.
+Our methodology relies on creating controlled experimental environments. We implement standalone solvers for each milestone to ensure that the benchmarking results are not influenced by external library overhead. All experiments were conducted using double-precision floating-point arithmetic for convex cases and single-precision for neural networks. The complete source code and experimental logs are available in our public repository \cite{ProjectRepo}.
 
 \subsection{Gradient Verification}
 To ensure the mathematical correctness of our implemented gradients (MSE, Logistic, and Hinge), we performed numerical sanity checks using finite differences.
